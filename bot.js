@@ -77,10 +77,10 @@ bot.on('ready', async () => {
 })
 
 // Run these on new member joining the discord
-bot.on("guildMemberAdd", (member) => {
+bot.on("guildMemberAdd", async (member) => {
     newUsers.newUser.push(member.id, member.user);          // Add user to newUser JSON object
-    member.roles.add('756314502273695766');       // Give user prospectiveMember Roles
-    storeNewUsers();                                        // Store newUser JSON object
+    await member.roles.add('756314502273695766');       // Give user prospectiveMember Roles
+    await storeNewUsers();                                        // Store newUser JSON object
 
     // TODO if user has previously verified they need to have their roles and such added
 })
