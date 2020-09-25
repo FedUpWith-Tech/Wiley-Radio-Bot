@@ -117,11 +117,11 @@ bot.on('message', async message  => {
 
     if (message.content.substr(0,7) === "!remove") {
         let rMember =  message.guild.member(message.mentions.users.first() || message.guild.members.cache.get(args[0])); //Gets the user
-        await rMember.roles.remove(member.roles);
         newUsers.newUser.push(rMember.id, rMember.user);
-        await rMember.roles.add('756314502273695766')
+        await rMember.roles.set(['756314502273695766'], "Removed Member from the club so reset roles.")
         let msg = await removeMember(rMember);
         await message.reply(msg);
+        storeNewUsers();
     }
 
     if (message.content === '!verify' && message.member.roles.cache.has('756314502273695766')) {
@@ -179,6 +179,10 @@ bot.on('message', async message  => {
             usr.step = 4;
             await storeNonMembers();
         } else if (usr.step === 3) {
+            if (prospectiveMembers === undefined) {
+                await roster.pullFromSheet();
+                prospectiveMembers = await roster.getMembers();
+            }
             if (message.member.roles.cache.has('751857955661545592') && message.content === '!verified') {
                 await bot.channels.cache.get(usr.UIDchannel).send(`Got it! Verifying user and applying ranks now.`);
                 usr.step = 5;
@@ -198,6 +202,10 @@ bot.on('message', async message  => {
                 await verifyMember(usr);
             }
         } else if (usr.step === 4) {
+            if (prospectiveMembers === undefined) {
+                await roster.pullFromSheet();
+                prospectiveMembers = await roster.getMembers();
+            }
             if (message.member.roles.cache.has('751857955661545592') && message.content.substr(0,8) === '!setuser') {
                 let email = message.content.substr(9)
                 for (let i = 0; i < prospectiveMembers.length; i++) {
@@ -233,6 +241,10 @@ bot.on('message', async message  => {
             } else await message.reply("I couldn't find a member with that email.")
         } else {
             if (usr.step === 2) {
+                if (prospectiveMembers === undefined) {
+                    await roster.pullFromSheet();
+                    prospectiveMembers = await roster.getMembers();
+                }
                 for (let i = 0; i < prospectiveMembers.length; i++) {
                     let pMember = prospectiveMembers[i];
                     if (pMember.Phone.includes(message.content)) {
@@ -283,6 +295,10 @@ bot.on('message', async message  => {
                 }
             }
             if (newUserArray.nonMembers[index].step === 1) {
+                if (prospectiveMembers === undefined) {
+                    await roster.pullFromSheet();
+                    prospectiveMembers = await roster.getMembers();
+                }
                 for (let i = 0; i < prospectiveMembers.length; i++) {
                     let pMember = prospectiveMembers[i];
                     if (pMember.Email.includes(message.content)) {
@@ -372,11 +388,20 @@ bot.login(TOKEN);
 
 function arrayRemove(arr, value) { return arr.filter(function(ele){ return ele != value; });}
 
+function arrayObjectRemove(arr, attr, value) {
+    let i = arr.length;
+    while(i--){
+        if( arr[i] && arr[i].hasOwnProperty(attr) && (arguments.length > 2 && arr[i][attr] === value ) ){
+            arr.splice(i,1);
+        }
+    }
+}
+
 async function removeMember(member) {
     for (let i=0;i<verifiedMembers.members.length;i++) {
         if (verifiedMembers.members[i].UID === member.id) {
             let id = verifiedMembers.members[i].UID;
-            await arrayRemove(verifiedMembers.members, member);
+            await arrayObjectRemove(verifiedMembers.members, 'UID', member.id);
             console.log(verifiedMembers)
             await storeMembers();
             return (`Removed <@${id}> from my member list`);
@@ -385,7 +410,7 @@ async function removeMember(member) {
     return (`That person isn't a member.`)
 }
 async function getIndex(id) {
-    for (let i=0; i < newUserArray.nonmembers.length; i++) {
+    for (let i=0; i < newUserArray.nonMembers.length; i++) {
         if (newUserArray.nonMembers[i].UIDchannel === id) {
             return i;
         } else return false;
@@ -402,7 +427,7 @@ async function verifyMember(usr) {
     verifiedMember.UID = usr.UID;
     verifiedMember.step = usr.step;
     verifiedMembers.members.push(verifiedMember);
-    await arrayRemove(newUserArray.nonMembers, usr)
+    await arrayObjectRemove(newUserArray.nonMembers, 'UID', usr.UID)
     await storeNonMembers();
     await storeMembers();
 }
