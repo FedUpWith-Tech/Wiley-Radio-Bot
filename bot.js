@@ -121,7 +121,7 @@ bot.on('message', async message  => {
         await rMember.roles.set(['756314502273695766'], "Removed Member from the club so reset roles.")
         let msg = await removeMember(rMember);
         await message.reply(msg);
-        storeNewUsers();
+        await storeNewUsers();
     }
 
     if (message.content === '!verify' && message.member.roles.cache.has('756314502273695766')) {
@@ -172,7 +172,169 @@ bot.on('message', async message  => {
 
         let index = await getIndex(message.channel.id);
         let usr = newUserArray.nonMembers[index];
-        if (message.content === "<@&751857955661545592>") {
+        switch (usr.step) {
+            case 1:
+                if (message.content === "<@&751857955661545592>") {
+                    await message.reply("Looks like you've requested manual assistance. I'll let an Exec take over.")
+                    let output = `Here's the info I have collected so far.\n**Name:** ${usr.Name}\n**Email:** ${usr.Email}\n**Phone:** ${usr.Phone}`;
+                    await bot.channels.cache.get(usr.UIDchannel).send(output);
+                    usr.step = 4;
+                    await storeNonMembers();
+                }
+                if (prospectiveMembers === undefined) {
+                    await roster.pullFromSheet();
+                    prospectiveMembers = await roster.getMembers();
+                }
+                for (let i = 0; i < prospectiveMembers.length; i++) {
+                    let pMember = prospectiveMembers[i];
+                    if (pMember.Email.includes(message.content)) {
+                        usr.Email = pMember.Email;
+                        usr.UID = message.author.id;
+                        usr.step = 2;
+                        if (pMember.Phone === '') {
+                            usr.member = message.member;
+                            usr.step = 4
+                            await message.reply("I found an email that matches but I don't have a phone number on file to verify your identity. Hold on while I grab an <@&751857955661545592> to manually verify your account.");
+                        } else await message.reply("First Step done, now: What is your Phone Number? (formatted like this 7654948221)");
+                        await storeNonMembers();
+                    }
+                }
+                if (usr.Email === undefined) {
+                    await message.reply("I didn't quite understand that, make sure email is formatted 'user@email.com' or ping an @Exec for assistance")
+                }
+                break;
+
+
+            case 2:
+                if (message.content === "<@&751857955661545592>") {
+                    await message.reply("Looks like you've requested manual assistance. I'll let an Exec take over.")
+                    let output = `Here's the info I have collected so far.\n**Name:** ${usr.Name}\n**Email:** ${usr.Email}\n**Phone:** ${usr.Phone}`;
+                    await bot.channels.cache.get(usr.UIDchannel).send(output);
+                    usr.step = 4;
+                    await storeNonMembers();
+                }
+                if (prospectiveMembers === undefined) {
+                    await roster.pullFromSheet();
+                    prospectiveMembers = await roster.getMembers();
+                }
+                for (let i = 0; i < prospectiveMembers.length; i++) {
+                    let pMember = prospectiveMembers[i];
+                    if (pMember.Phone.includes(message.content)) {
+                        if (usr.Email !== pMember.Email) {
+                            await bot.channels.cache.get(usr.UIDchannel).send(`That information doesn't quite match what I have on file let me get an <@&751857955661545592> to assist`)
+                            await bot.channels.cache.get(usr.UIDchannel).send(`Here's the information I have gathered-\n**Email:** ${usr.Email}\n**Phone:** ${message.content}`)
+                            usr.member = message.member;
+                            usr.step = 4
+                            await storeNonMembers();
+                        }
+                        else if (usr.Email === pMember.Email) {
+                            usr.Phone = message.content;
+                            usr.Status = pMember.Status
+                            usr.Roles = pMember.Roles
+                            if (usr.Status.includes("Exec")) {
+                                usr.step = 3;
+                                usr.member = message.member;
+                                usr.Name = pMember.Name
+                                usr.hasShow = pMember.hasShow;
+                                await message.reply("Looks like you might be an exec - let me get an <@&751857955661545592> to manually verify")
+                                await bot.channels.cache.get(usr.UIDchannel).send(`Here's the information I have gathered-\n**Name:** ${usr.Name}\n**Email:** ${usr.Email}\n**Phone:** ${usr.Phone}\n**Roles:** ${usr.Roles}`);
+                                await storeNonMembers();
+                            } else {
+                                usr.Name = pMember.Name
+                                usr.step = 5;
+                                usr.hasShow = pMember.hasShow;
+                                await message.member.roles.add('756314927945351209')
+                                await message.member.roles.remove('756314502273695766')
+                                await message.member.setNickname(usr.Name)
+                                for (let i = 0; i < usr.Roles.length; i++) {
+                                    let role = message.guild.roles.cache.find(role => role.name === usr.Roles[i]);
+                                    if (role !== undefined) {
+                                        await message.member.roles.add(role.id);
+                                    }
+                                }
+                                if (usr.hasShow === "TRUE") {
+                                    await message.member.roles.add('751858085882232964')
+                                }
+                                await bot.channels.cache.get('756932892193456240').send(`I automatically verified <@${usr.UID}>.\n**Name:** ${usr.Name}\n**Email:** ${usr.Email}\n**Phone:** ${usr.Phone}\n**Roles:** ${usr.Roles}\n**User has Show:** ${usr.hasShow}`)
+                                await message.guild.channels.cache.get(usr.UIDchannel).delete();
+                                await verifyMember(usr);
+                            }
+                        }
+                    }
+                }
+                if (usr.Phone === undefined) {
+                    await message.reply(`I couldn't find a member with the phone number ${message.content}. Please re-enter your phone number or ping an @Exec for assistance.`);
+                }
+                break;
+
+
+            case 3:
+                if (prospectiveMembers === undefined) {
+                    await roster.pullFromSheet();
+                    prospectiveMembers = await roster.getMembers();
+                }
+                if (message.member.roles.cache.has('751857955661545592') && message.content === '!verified') {
+                    await bot.channels.cache.get(usr.UIDchannel).send(`Got it! Verifying user and applying ranks now.`);
+                    usr.step = 5;
+
+                    await usr.member.roles.add('751857955661545592')
+                    await usr.member.roles.remove('756314502273695766')
+                    for (let i=0;i<usr.Roles.length;i++) {
+                        await usr.member.setNickname(usr.Name)
+                        let role = message.guild.roles.cache.find(role => role.name === usr.Roles[i]);
+                        await usr.member.roles.add(role.id);
+                    }
+                    if (usr.hasShow === "TRUE") {
+                        await usr.member.roles.add('751858085882232964')
+                    }
+                    await bot.channels.cache.get('756932892193456240').send(`<@${message.author.id}> manually verified <@${usr.UID}> as an Exec.\n**Name:** ${usr.Name}\n**Email:** ${usr.Email}\n**Phone:** ${usr.Phone}\n**Roles:** ${usr.Roles}\n**User has Show**: ${usr.hasShow}`)
+                    await message.guild.channels.cache.get(usr.UIDchannel).delete();
+                    await verifyMember(usr);
+                }
+                break;
+
+
+            case 4:
+                if (prospectiveMembers === undefined) {
+                    await roster.pullFromSheet();
+                    prospectiveMembers = await roster.getMembers();
+                }
+                if (message.member.roles.cache.has('751857955661545592') && message.content.substr(0,8) === '!setuser') {
+                    let email = message.content.substr(9)
+                    for (let i = 0; i < prospectiveMembers.length; i++) {
+                        let pMember = prospectiveMembers[i];
+                        if (pMember.Email === email) {
+                            usr.step = 5;
+                            usr.Phone = pMember.Phone;
+                            usr.Status = pMember.Status
+                            usr.Roles = pMember.Roles
+                            usr.Name = pMember.Name
+                            usr.hasShow = pMember.hasShow;
+                            await usr.member.setNickname(usr.Name)
+                            if (usr.Status === "Exec") {
+                                await usr.member.roles.add('751857955661545592')
+                            } else if (usr.Status === "Member")  {
+                                await usr.member.roles.add('756314927945351209')
+                            }
+                            await usr.member.roles.remove('756314502273695766')
+                            for (let i=0;i<usr.Roles.length;i++) {
+                                let role = message.guild.roles.cache.find(role => role.name === usr.Roles[i]);
+                                if (role !== undefined) {
+                                    await usr.member.roles.add(role.id);
+                                }
+                            }
+                            if (usr.hasShow === "TRUE") {
+                                await usr.member.roles.add('751858085882232964')
+                            }
+                            await bot.channels.cache.get('756932892193456240').send(`<@${message.author.id}> manually verified ${usr.Status} <@${usr.UID}> .\n**Name:** ${usr.Name}\n**Email:** ${usr.Email}\n**Phone:** ${usr.Phone}\n**Roles:** ${usr.Roles}\n**User has Show**: ${usr.hasShow}`)
+                            await message.guild.channels.cache.get(usr.UIDchannel).delete();
+                            await verifyMember(usr);
+                        }
+                    }
+                } else await message.reply("I couldn't find a member with that email.")
+                break;
+        }
+        /*if (message.content === "<@&751857955661545592>") {
             await message.reply("Looks like you've requested manual assistance. I'll let an Exec take over.")
             let output = `Here's the info I have collected so far.\n**Name:** ${usr.Name}\n**Email:** ${usr.Email}\n**Phone:** ${usr.Phone}`;
             await bot.channels.cache.get(usr.UIDchannel).send(output);
@@ -254,8 +416,7 @@ bot.on('message', async message  => {
                             usr.member = message.member;
                             usr.step = 4
                             await storeNonMembers();
-                        }
-                        else if (usr.Email === pMember.Email) {
+                        } else if (usr.Email === pMember.Email) {
                             usr.Phone = message.content;
                             usr.Status = pMember.Status
                             usr.Roles = pMember.Roles
@@ -293,31 +454,32 @@ bot.on('message', async message  => {
                 if (usr.Phone === undefined && usr.step !== 4) {
                     await message.reply(`I couldn't find a member with the phone number ${message.content}. Please re-enter your phone number or ping and @Exec for assistance.`);
                 }
-            }
-            if (newUserArray.nonMembers[index].step === 1) {
-                if (prospectiveMembers === undefined) {
-                    await roster.pullFromSheet();
-                    prospectiveMembers = await roster.getMembers();
-                }
-                for (let i = 0; i < prospectiveMembers.length; i++) {
-                    let pMember = prospectiveMembers[i];
-                    if (pMember.Email.includes(message.content)) {
-                        usr.Email = pMember.Email;
-                        usr.UID = message.author.id;
-                        usr.step = 2;
-                        if (pMember.Phone === '') {
-                            usr.member = message.member;
-                            usr.step = 4
-                            await message.reply("I found an email that matches but I don't have a phone number on file to verify your identity. Hold on while I grab an <@&751857955661545592> to manually verify your account.");
-                        } else await message.reply("First Step done, now: What is your Phone Number? (formatted like this 7654948221)");
-                        await storeNonMembers();
+            } else {
+                if (newUserArray.nonMembers[index].step === 1) {
+                    if (prospectiveMembers === undefined) {
+                        await roster.pullFromSheet();
+                        prospectiveMembers = await roster.getMembers();
+                    }
+                    for (let i = 0; i < prospectiveMembers.length; i++) {
+                        let pMember = prospectiveMembers[i];
+                        if (pMember.Email.includes(message.content)) {
+                            usr.Email = pMember.Email;
+                            usr.UID = message.author.id;
+                            usr.step = 2;
+                            if (pMember.Phone === '') {
+                                usr.member = message.member;
+                                usr.step = 4
+                                await message.reply("I found an email that matches but I don't have a phone number on file to verify your identity. Hold on while I grab an <@&751857955661545592> to manually verify your account.");
+                            } else await message.reply("First Step done, now: What is your Phone Number? (formatted like this 7654948221)");
+                            await storeNonMembers();
+                        }
+                    }
+                    if (usr.Email === undefined) {
+                        await message.reply("I didn't quite understand that, make sure email is formatted 'user@email.com' or ping an @Exec for assistance")
                     }
                 }
-                if (usr.Email === undefined) {
-                    await message.reply("I didn't quite understand that, make sure email is formatted 'user@email.com' or ping an @Exec for assistance")
-                }
             }
-        }
+        }*/
     }
     if (message.content === "!members" && message.member.roles.cache.has('751857955661545592')) {
         let counter = 0;
@@ -383,7 +545,7 @@ expressApp.post(config.callbackURL, (req, res) => {
 });
 
 
-//expressApp.listen(config.listenPort, () => console.log('Express now listening for requests'));
+expressApp.listen(config.listenPort, () => console.log('Express now listening for requests'));
 bot.login(TOKEN);
 
 function arrayRemove(arr, value) { return arr.filter(function(ele){ return ele != value; });}
@@ -510,7 +672,6 @@ function download(url, filename, callback) {
 }
 
 function sendGroupMeMessage(message, attachments, callback) {
-    return;
     let options = {
         method: 'POST',
         uri: 'https://api.groupme.com/v3/bots/post',
