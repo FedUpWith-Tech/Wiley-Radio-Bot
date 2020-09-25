@@ -75,7 +75,7 @@ bot.on("guildMemberAdd", (member) => {
     storeNewUsers();
 })
 bot.on("guildMemberRemove", (member) => {
-    if(newUsers.newUser.includes(member.id)) newUsers = arrayRemove(newUsers, member);
+    if(newUsers.newUser.includes(member.id)) newUsers = arrayObjectRemove(newUsers.newUser, 'UID', member.id);
 
 });
 
